@@ -11,6 +11,7 @@ export const AddItemSheet = ({
   onClose: () => void, 
   onAdd: (line: CartLine) => void 
 }) => {
+  // Input တွေမှာ သုည ရှေ့ကမခံအောင် string/number နှစ်မျိုးလုံးလက်ခံထားပါတယ်
   const [p, setP] = useState<number | string>(product.price);
   const [q, setQ] = useState<number | string>(1);
 
@@ -46,7 +47,7 @@ export const AddItemSheet = ({
         </div>
 
         <div className="space-y-8">
-          {/* Price */}
+          {/* Price Input */}
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-orange-600 uppercase tracking-wider ml-2">ဈေးနှုန်း (MMK)</label>
             <input 
@@ -62,7 +63,7 @@ export const AddItemSheet = ({
             />
           </div>
 
-          {/* Quantity */}
+          {/* Quantity Input */}
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-orange-600 uppercase tracking-wider ml-2">ဝယ်ယူမည့် ပမာဏ ({product.unit})</label>
             <div className="relative">
@@ -84,9 +85,9 @@ export const AddItemSheet = ({
           </div>
         </div>
 
-        {/* Total Display */}
-        <div className="mt-8 p-5 bg-orange-50 rounded-2xl flex justify-between items-center">
-          <span className="text-orange-800 font-bold">စုစုပေါင်း</span>
+        {/* Total Price */}
+        <div className="mt-8 p-5 bg-orange-50 rounded-2xl flex justify-between items-center border border-orange-100">
+          <span className="text-orange-800 font-bold">စုစုပေါင်း ကျသင့်ငွေ</span>
           <span className="text-2xl font-black text-orange-600">
             {(Number(p) * Number(q)).toLocaleString()} ကျပ်
           </span>
