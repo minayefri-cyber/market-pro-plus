@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-receipt, #printable-receipt * {
+    visibility: visible;
+  }
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: black !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+.receipt-table th {
+  border-bottom: 2px solid black;
+  text-align: left;
+  padding: 8px;
+  font-size: 11px;
+}
+.receipt-table td {
+  border-bottom: 1px dashed #eee;
+  padding: 8px;
+  font-size: 12px;
+}@media print {
+  /* Page size ကို auto ထားပြီး margin သတ်မှတ်တာပါ */
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+  
+  body {
+    background: white;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Receipt ကလွဲပြီး ကျန်တာအကုန် ဖျောက်ထားတာပါ */
+  .print\:hidden, nav, button {
+    display: none !important;
+  }
+
+  #printable-receipt {
+    border: none !important;
+    box-shadow: none !important;
+    width: 100%;
+    margin: 0;
+    padding: 10mm;
+    page-break-after: avoid;
+  }
+}
