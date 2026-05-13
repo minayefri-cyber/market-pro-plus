@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useCart } from './context/CartContext';
 import { useHistory } from './context/HistoryContext';
-import { CATEGORIES, MASTER_ITEMS } from './data/catalog';
+import { CATEGORIES, MASTER_ITEMS, catalogItemMatchesSearch } from './data/catalog';
 import { Plus, Search, X, Printer, ShoppingBasket, Trash2, History, BarChart3, ChevronRight, Save, RefreshCcw, Camera } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -25,8 +25,11 @@ export const MarketApp = () => {
 
   const [inputName, setInputName] = useState('');
   const [inputPrice, setInputPrice] = useState('');
-  const [inputQty, setInputQty] = useState(1);
+  /** Modal quantity as string so the field can be cleared/edited without snapping to 0. */
+  const [qtyInputStr, setQtyInputStr] = useState('1');
   const [selectedUnit, setSelectedUnit] = useState('ခု');
+  /** English `CATEGORIES[].en` for manual / custom cart lines; defaults to Others at save if unset. */
+  const [manualCategoryEn, setManualCategoryEn] = useState<string>('Others');
 
   const t = (en: string, mm: string) => (lang === 'EN' ? en : mm);
   const grandTotal = lines.reduce((sum: number, line: any) => sum + (line.totalPrice || 0), 0);
@@ -36,6 +39,21 @@ export const MarketApp = () => {
   useEffect(() => {
     localStorage.setItem('market_store_name', storeName);
   }, [storeName]);
+
+  const validCategoryEns = useMemo(() => new Set(CATEGORIES.map((c) => c.en)), []);
+  useEffect(() => {
+    if (!validCategoryEns.has(activeCat)) {
+      setActiveCat(CATEGORIES[0]?.en ?? 'Vegetables');
+    }
+  }, [validCategoryEns, activeCat]);
+
+  const visibleCatalogItems = useMemo(() => {
+    const q = searchTerm.trim();
+    if (q) {
+      return MASTER_ITEMS.filter((i) => catalogItemMatchesSearch(i, q));
+    }
+    return MASTER_ITEMS.filter((i) => i.cat === activeCat);
+  }, [searchTerm, activeCat]);
 
   const currentMonth = new Date().getMonth();
   const monthlyTotal = history
@@ -58,8 +76,12 @@ export const MarketApp = () => {
 
     filtered.forEach((rec: any) => {
       rec.items.forEach((it: any) => {
-        const catData = MASTER_ITEMS.find((m: any) => it.mmName.includes(m.mm));
-        const catName = catData ? t(catData.cat, CATEGORIES.find(c => c.en === catData.cat)?.mm || catData.cat) : 'အထွေထွေ';
+        const catEnFromLine =
+          typeof it.categoryEn === 'string' && validCategoryEns.has(it.categoryEn)
+            ? it.categoryEn
+            : MASTER_ITEMS.find((m: any) => it.mmName.includes(m.mm))?.cat;
+        const catEn = catEnFromLine ?? 'Others';
+        const catName = t(catEn, CATEGORIES.find((c) => c.en === catEn)?.mm || catEn);
         categoryMap[catName] = (categoryMap[catName] || 0) + it.totalPrice;
         if (!itemMap[it.mmName]) { itemMap[it.mmName] = { total: 0, qty: 0, unit: it.unit }; }
         itemMap[it.mmName].total += it.totalPrice;
@@ -74,7 +96,7 @@ export const MarketApp = () => {
       })).sort((a, b) => b.total - a.total);
 
     return { categoryData: sortedCategories, allItemData: sortedItems, periodTotal: periodTotalSpending };
-  }, [history, statsPeriod, selectedMonths, lang]);
+  }, [history, statsPeriod, selectedMonths, lang, validCategoryEns]);
 
   const toggleMonth = (idx: number) => {
     setSelectedMonths(prev => 
@@ -86,7 +108,14 @@ export const MarketApp = () => {
   const saveAsImage = async () => {
     const element = document.querySelector('.print-area') as HTMLElement;
     if (!element) return;
-    const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
+    const canvas = await html2canvas(element, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      onclone: (_doc, cloned) => {
+        cloned.querySelectorAll('[data-receipt-capture-hide]').forEach((node) => node.remove());
+        cloned.querySelectorAll('.print-area tbody button').forEach((node) => node.remove());
+      },
+    });
     const image = canvas.toDataURL("image/png");
     const link = document.createElement('a');
     link.href = image;
@@ -98,11 +127,18 @@ export const MarketApp = () => {
     <div className="min-h-screen bg-slate-100 flex justify-center text-slate-900 font-sans">
       <style>{`
         input { font-size: 16px !important; }
+        input.market-price-field {
+          font-size: clamp(1.75rem, 7vw, 2.75rem) !important;
+          line-height: 1.15 !important;
+          -webkit-appearance: none;
+          appearance: none;
+        }
         @media print {
           body * { visibility: hidden !important; }
           .print-area, .print-area * { visibility: visible !important; }
           .print-area { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 20px !important; background: white !important; }
           .no-print { display: none !important; }
+          .print-area [data-receipt-capture-hide] { display: none !important; visibility: hidden !important; }
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
@@ -127,7 +163,7 @@ export const MarketApp = () => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input type="text" placeholder={t("Search...", "ရှာရန်...")} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-100 rounded-2xl outline-none font-bold" />
                 </div>
-                <button onClick={() => { setEditingItem({ custom: true }); setInputName(''); setInputPrice(''); setInputQty(1); }} className="bg-orange-600 text-white p-3 rounded-2xl shadow-lg active:scale-95"><Plus size={24} /></button>
+                <button onClick={() => { setEditingItem({ custom: true }); setInputName(''); setInputPrice(''); setQtyInputStr('1'); setManualCategoryEn('Others'); }} className="bg-orange-600 text-white p-3 rounded-2xl shadow-lg active:scale-95"><Plus size={24} /></button>
               </div>
 
               {!searchTerm && (
@@ -141,10 +177,15 @@ export const MarketApp = () => {
               )}
               
               <div className="grid grid-cols-3 gap-3">
-                 {MASTER_ITEMS.filter((i: any) => (searchTerm ? (i.en.toLowerCase().includes(searchTerm.toLowerCase()) || i.mm.includes(searchTerm)) : i.cat === activeCat)).map((i: any) => (
-                    <button key={i.en} onClick={() => { setEditingItem(i); setInputPrice(''); setInputQty(1); }} className="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-[2rem] bg-white aspect-square active:scale-95 transition-all shadow-sm">
-                      <span className="text-3xl mb-1">{i.img}</span>
-                      <span className="text-[10px] font-black text-slate-700 text-center leading-tight">{t(i.en, i.mm)}</span>
+                 {visibleCatalogItems.map((i: any) => (
+                    <button
+                      key={i.id}
+                      type="button"
+                      onClick={() => { setEditingItem(i); setInputPrice(''); setQtyInputStr('1'); }}
+                      className="flex flex-col items-stretch justify-between p-3 border border-slate-100 rounded-[2rem] bg-white aspect-square active:scale-95 transition-all shadow-sm min-h-0"
+                    >
+                      <span className="text-3xl leading-none flex shrink-0 items-center justify-center min-h-[2.5rem]" aria-hidden>{i.img}</span>
+                      <span className="text-[10px] font-black text-slate-700 text-center leading-tight line-clamp-3 flex flex-1 items-end justify-center pt-1">{t(i.en, i.mm)}</span>
                     </button>
                  ))}
               </div>
@@ -171,14 +212,22 @@ export const MarketApp = () => {
                   <tbody>
                     {lines.map((line: any, idx: number) => (
                       <tr key={line.productId} className="border-b border-slate-50">
-                        <td className="py-3 text-slate-400 flex items-center gap-1">
-                          <button onClick={() => removeFromCart(line.productId)} className="no-print text-red-400"><Trash2 size={12}/></button>
-                          {idx + 1}
+                        <td className="py-3 text-slate-400 align-middle whitespace-nowrap w-10 text-center tabular-nums">
+                          <span className="inline-block min-w-[1.25rem] text-center">{idx + 1}</span>
+                          <button
+                            type="button"
+                            data-receipt-capture-hide
+                            aria-label={t('Remove item', 'ပစ္စည်းဖျက်ရန်')}
+                            onClick={() => removeFromCart(line.productId)}
+                            className="no-print inline-block align-middle ml-1.5 p-0.5 text-red-400 receipt-line-delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </td>
-                        <td className="py-3 font-bold">{line.mmName}</td>
-                        <td className="py-3 text-right text-slate-500">{line.price.toLocaleString()}</td>
-                        <td className="py-3 font-bold text-center">{line.quantity} {line.unit}</td>
-                        <td className="py-3 text-right font-black">{line.totalPrice.toLocaleString()}</td>
+                        <td className="py-3 font-bold align-middle">{line.mmName}</td>
+                        <td className="py-3 text-right text-slate-500 align-middle tabular-nums">{line.price.toLocaleString()}</td>
+                        <td className="py-3 font-bold text-center align-middle whitespace-nowrap">{line.quantity} {line.unit}</td>
+                        <td className="py-3 text-right font-black align-middle tabular-nums">{line.totalPrice.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -318,33 +367,133 @@ export const MarketApp = () => {
         {/* EDIT MODAL */}
         {editingItem && (
           <div className="fixed inset-0 z-[100] flex flex-col justify-end max-w-md mx-auto no-print">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setEditingItem(null)} />
-            <div className="relative w-full bg-white rounded-t-[3rem] p-8 pb-12 shadow-2xl">
+            <div className="absolute inset-0 z-0 bg-black/40" onClick={() => setEditingItem(null)} />
+            <div className="relative z-20 w-full bg-white rounded-t-[3rem] p-8 pb-12 shadow-2xl pointer-events-auto">
               <div className="flex justify-between items-center mb-4">
                  <h2 className="text-2xl font-black">{editingItem.custom ? 'ပစ္စည်းအသစ်' : t(editingItem.en, editingItem.mm)}</h2>
                  <button onClick={() => setEditingItem(null)} className="p-2 bg-slate-50 rounded-full active:bg-slate-100"><X size={20}/></button>
               </div>
               <div className="space-y-6">
-                {editingItem.custom && <input type="text" value={inputName} onChange={(e) => setInputName(e.target.value)} className="w-full text-lg font-bold border-b-2 py-2 outline-none focus:border-orange-600 bg-transparent" placeholder="ပစ္စည်းအမည်" autoFocus />}
-                <div className="relative border-b-2 border-slate-100 focus-within:border-orange-600">
-                  <input type="number" value={inputPrice} onChange={(e) => setInputPrice(e.target.value)} className="w-full text-6xl font-black text-orange-600 py-3 outline-none bg-transparent" placeholder="0" autoFocus={!editingItem.custom} />
-                  <span className="absolute right-0 bottom-4 text-slate-300 font-black text-xs uppercase tracking-widest">MMK</span>
+                {editingItem.custom && (
+                  <>
+                    <input
+                      type="text"
+                      value={inputName}
+                      onChange={(e) => setInputName(e.target.value)}
+                      className="w-full text-lg font-bold border-b-2 py-2 outline-none focus:border-orange-600 bg-transparent"
+                      placeholder="ပစ္စည်းအမည်"
+                      autoFocus
+                      enterKeyHint="next"
+                    />
+                    <div className="relative z-10 border-b-2 border-slate-100 focus-within:border-orange-600">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        name="custom-item-price"
+                        readOnly={false}
+                        value={inputPrice}
+                        onChange={(e) => setInputPrice(e.target.value.replace(/\D/g, ''))}
+                        className="market-price-field w-full font-black text-orange-600 py-3 pr-14 outline-none bg-transparent"
+                        placeholder="0"
+                      />
+                      <span className="pointer-events-none absolute right-0 bottom-3 text-slate-300 font-black text-xs uppercase tracking-widest">MMK</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('Category', 'ကဏ္ဍ')}</p>
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+                        {CATEGORIES.map((cat: { en: string; mm: string }) => (
+                          <button
+                            key={cat.en}
+                            type="button"
+                            onClick={() => setManualCategoryEn(cat.en)}
+                            className={`px-4 py-2 rounded-2xl font-black text-[11px] whitespace-nowrap flex-shrink-0 transition-all ${manualCategoryEn === cat.en ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}
+                          >
+                            {t(cat.en, cat.mm)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {!editingItem.custom && (
+                <div className="relative z-10 border-b-2 border-slate-100 focus-within:border-orange-600">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    name="catalog-item-price"
+                    readOnly={false}
+                    value={inputPrice}
+                    onChange={(e) => setInputPrice(e.target.value.replace(/\D/g, ''))}
+                    className="market-price-field w-full font-black text-orange-600 py-3 pr-14 outline-none bg-transparent"
+                    placeholder="0"
+                    autoFocus
+                  />
+                  <span className="pointer-events-none absolute right-0 bottom-3 text-slate-300 font-black text-xs uppercase tracking-widest">MMK</span>
                 </div>
+                )}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
                   {UNITS.map(u => (
-                    <button key={u} onClick={() => setSelectedUnit(u)} className={`px-5 py-2.5 rounded-xl font-black text-[11px] flex-shrink-0 transition-all ${selectedUnit === u ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>{u}</button>
+                    <button key={u} type="button" onClick={() => setSelectedUnit(u)} className={`px-5 py-2.5 rounded-xl font-black text-[11px] flex-shrink-0 transition-all ${selectedUnit === u ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>{u}</button>
                   ))}
                 </div>
-                <div className="bg-slate-50 p-2 rounded-[2rem] flex items-center justify-between border border-slate-100">
-                  <button onClick={() => setInputQty(q => Math.max(0, Number((q - 0.1).toFixed(2))))} className="p-4 bg-white rounded-2xl shadow-sm text-orange-600 active:scale-90"><RefreshCcw size={22} className="rotate-45" /></button>
-                  <input type="number" step="any" value={inputQty} onChange={(e) => setInputQty(parseFloat(e.target.value) || 0)} className="bg-transparent text-3xl font-black text-center w-24 outline-none text-slate-800" />
-                  <button onClick={() => setInputQty(q => Number((q + 0.1).toFixed(2)))} className="p-4 bg-white rounded-2xl shadow-sm text-orange-600 active:scale-90"><Plus size={22}/></button>
+                <div className="bg-slate-50 p-2 rounded-[2rem] flex items-center justify-between border border-slate-100 relative z-10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = parseFloat(qtyInputStr);
+                      const base = Number.isFinite(cur) ? cur : 0;
+                      setQtyInputStr(String(Math.max(0, Number((base - 0.1).toFixed(2)))));
+                    }}
+                    className="p-4 bg-white rounded-2xl shadow-sm text-orange-600 active:scale-90"
+                  >
+                    <RefreshCcw size={22} className="rotate-45" />
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    readOnly={false}
+                    value={qtyInputStr}
+                    onChange={(e) => {
+                      let v = e.target.value.replace(/[^\d.]/g, '');
+                      const dot = v.indexOf('.');
+                      if (dot !== -1) {
+                        v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '');
+                      }
+                      setQtyInputStr(v);
+                    }}
+                    className="bg-transparent text-3xl font-black text-center min-w-[5rem] max-w-[7rem] flex-1 outline-none text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = parseFloat(qtyInputStr);
+                      const base = Number.isFinite(cur) ? cur : 0;
+                      setQtyInputStr(String(Number((base + 0.1).toFixed(2))));
+                    }}
+                    className="p-4 bg-white rounded-2xl shadow-sm text-orange-600 active:scale-90"
+                  >
+                    <Plus size={22} />
+                  </button>
                 </div>
                 <button onClick={() => {
-                  const p = Number(inputPrice); const q = Number(inputQty);
-                  if (!p || q <= 0 || (editingItem.custom && !inputName)) return;
-                  const finalName = editingItem.custom ? `📦 ${inputName}` : `${editingItem.img} ${t(editingItem.en, editingItem.mm)}`;
-                  addToCart({ productId: Date.now().toString(), mmName: finalName, price: p, quantity: q, unit: selectedUnit, totalPrice: Math.round(p * q) });
+                  const p = Number(inputPrice);
+                  const q = parseFloat(qtyInputStr);
+                  if (!Number.isFinite(p) || p <= 0 || !Number.isFinite(q) || q <= 0 || (editingItem.custom && !inputName.trim())) return;
+                  const categoryEn = editingItem.custom
+                    ? (validCategoryEns.has(manualCategoryEn) ? manualCategoryEn : 'Others')
+                    : editingItem.cat;
+                  const finalName = editingItem.custom ? `📦 ${inputName.trim()}` : `${editingItem.img} ${t(editingItem.en, editingItem.mm)}`;
+                  addToCart({
+                    productId: Date.now().toString(),
+                    mmName: finalName,
+                    price: p,
+                    quantity: q,
+                    unit: selectedUnit,
+                    totalPrice: Math.round(p * q),
+                    categoryEn,
+                  });
                   setEditingItem(null);
                 }} className="w-full bg-orange-600 text-white py-5 rounded-[2.5rem] font-black text-xl shadow-xl active:scale-95 transition-all uppercase tracking-tight">ခြင်းတောင်းထဲထည့်မည်</button>
               </div>

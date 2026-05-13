@@ -1,58 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
+import { CATEGORIES, MASTER_ITEMS, catalogItemMatchesSearch } from '../data/catalog';
 import { Plus, Minus, Search, ShoppingCart, X, Send, Printer } from 'lucide-react';
 
-const CATEGORIES = [
-  { en: 'Vegetables', mm: 'ဟင်းသီးဟင်းရွက်', emoji: '🥬' },
-  { en: 'Fruits', mm: 'သစ်သီးဝလံ', emoji: '🍎' },
-  { en: 'Meat & Fish', mm: 'အသားနှင့်ငါး', emoji: '🍖' },
-  { en: 'Rice & Grains', mm: 'ဆန်နှင့် အစေ့အဆန်', emoji: '🌾' },
-  { en: 'Oil & Spices', mm: 'ဆီနှင့် ဟင်းခတ်အမွှေးအကြိုင်', emoji: '🧂' },
-  { en: 'Dairy', mm: 'နို့ထွက်ပစ္စည်း', emoji: '🥚' },
-  { en: 'Drinks', mm: 'အဖျော်ယမကာ', emoji: '🥤' },
-  { en: 'Snacks', mm: 'မုန့်မျိုးစုံ', emoji: '🍪' },
-  { en: 'Household', mm: 'အိမ်သုံးပစ္စည်း', emoji: '🧴' },
-  { en: 'Other', mm: 'အထွေထွေ', emoji: '🎁' }
-];
-
 const UNITS = ['ခု', 'ထုပ်', 'ဘူး', 'ပိဿာ', 'ဆယ်သား', 'လုံး', 'ကတ်', 'ပြည်', 'လီတာ', 'ကျပ်သား', 'ထုပ်ငယ်'];
-
-const MASTER_ITEMS = [
-  { id: 'v1', en: 'Tomato', mm: 'ခရမ်းချဉ်သီး', cat: 'Vegetables', img: '🍅' },
-  { id: 'v2', en: 'Cabbage', mm: 'ဂေါ်ဖီထုပ်', cat: 'Vegetables', img: '🥬' },
-  { id: 'v3', en: 'Onion', mm: 'ကြက်သွန်နီ', cat: 'Vegetables', img: '🧅' },
-  { id: 'v4', en: 'Potato', mm: 'အာလူး', cat: 'Vegetables', img: '🥔' },
-  { id: 'v5', en: 'Carrot', mm: 'မုန်လာဥနီ', cat: 'Vegetables', img: '🥕' },
-  { id: 'v6', en: 'Green Chili', mm: 'ငရုတ်သီးစိမ်း', cat: 'Vegetables', img: '🌶️' },
-  { id: 'v7', en: 'Water Cress', mm: 'ကန်စွန်းရွက်', cat: 'Vegetables', img: '🌿' },
-  { id: 'v8', en: 'Sour Leaf', mm: 'ချဉ်ပေါင်ရွက်', cat: 'Vegetables', img: '🍃' },
-  { id: 'v9', en: 'Cucumber', mm: 'သခွားသီး', cat: 'Vegetables', img: '🥒' },
-  { id: 'v10', en: 'Eggplant', mm: 'ခရမ်းသီး', cat: 'Vegetables', img: '🍆' },
-  { id: 'v11', en: 'Cauliflower', mm: 'ပန်းဂေါ်ဖီ', cat: 'Vegetables', img: '🥦' },
-  { id: 'v12', en: 'Long Bean', mm: 'ပဲသီး', cat: 'Vegetables', img: '🎋' },
-  { id: 'v13', en: 'Pumpkin', mm: 'ရွှေဖရုံသီး', cat: 'Vegetables', img: '🎃' },
-  { id: 'v14', en: 'Bottle Gourd', mm: 'ဘူးသီး', cat: 'Vegetables', img: '🥒' },
-  { id: 'v15', en: 'Coriander', mm: 'နံနံပင်', cat: 'Vegetables', img: '🌱' },
-  { id: 'v16', en: 'Bell Pepper', mm: 'ငရုတ်ပွ', cat: 'Vegetables', img: '🫑' },
-  { id: 'v17', en: 'Mushroom', mm: 'မှို', cat: 'Vegetables', img: '🍄' },
-  { id: 'v18', en: 'Corn', mm: 'ပြောင်းဖူး', cat: 'Vegetables', img: '🌽' },
-  { id: 'v19', en: 'Lime', mm: 'သံပရာသီး', cat: 'Vegetables', img: '🍋' },
-  { id: 'v20', en: 'Radish', mm: 'မုန်လာဥဖြူ', cat: 'Vegetables', img: '🥥' },
-  { id: 'v21', en: 'Kale', mm: 'ကိုက်လန်', cat: 'Vegetables', img: '🥬' },
-  { id: 'v22', en: 'Spinach', mm: 'ဟင်းနုနွယ်', cat: 'Vegetables', img: '🌿' },
-  { id: 'v23', en: 'Acacia Leaf', mm: 'ဆူးပုတ်', cat: 'Vegetables', img: '🌿' },
-  { id: 'v24', en: 'Bitter Leaf', mm: 'ဂွေးတောက်ရွက်', cat: 'Vegetables', img: '🍃' },
-  { id: 'v25', en: 'Napa Cabbage', mm: 'မုန်ညင်းဖြူ', cat: 'Vegetables', img: '🥬' },
-  { id: 'v26', en: 'Okra', mm: 'ရုံးပတီသီး', cat: 'Vegetables', img: '🥒' },
-  { id: 'm1', en: 'Chicken (CP)', mm: 'ကြက်သား (CP)', cat: 'Meat & Fish', img: '🍗' },
-  { id: 'm2', en: 'Pork', mm: 'ဝက်သား', cat: 'Meat & Fish', img: '🥩' },
-  { id: 'fi1', en: 'Carp Fish', mm: 'ငါးမြစ်ချင်း', cat: 'Meat & Fish', img: '🐟' },
-  { id: 'rg1', en: 'Shwe Bo Rice', mm: 'ဆန် (ရွှေဘိုပေါ်ဆန်း)', cat: 'Rice & Grains', img: '🌾' },
-  { id: 'os1', en: 'Peanut Oil', mm: 'ပဲဆီသန့်', cat: 'Oil & Spices', img: '🧴' },
-  { id: 'os6', en: 'Garlic', mm: 'ကြက်သွန်ဖြူ', cat: 'Oil & Spices', img: '🧄' },
-  { id: 'd1', en: 'Egg', mm: 'ကြက်ဥ', cat: 'Dairy', img: '🥚' },
-  { id: 'hh1', en: 'Soap Bar', mm: 'ဆပ်ပြာခဲ', cat: 'Household', img: '🧼' }
-];
 
 export const CatalogView = () => {
   const { lines = [], addToCart } = useCart();
@@ -68,6 +19,21 @@ export const CatalogView = () => {
 
   const t = (en: string, mm: string) => (lang === 'EN' ? en : mm);
   const grandTotal = lines.reduce((sum, line) => sum + line.totalPrice, 0);
+
+  const validCategoryEns = useMemo(() => new Set(CATEGORIES.map((c) => c.en)), []);
+  useEffect(() => {
+    if (!validCategoryEns.has(activeCat)) {
+      setActiveCat(CATEGORIES[0]?.en ?? 'Vegetables');
+    }
+  }, [validCategoryEns, activeCat]);
+
+  const visibleCatalogItems = useMemo(() => {
+    const q = searchTerm.trim();
+    if (q) {
+      return MASTER_ITEMS.filter((i) => catalogItemMatchesSearch(i, q));
+    }
+    return MASTER_ITEMS.filter((i) => i.cat === activeCat);
+  }, [searchTerm, activeCat]);
 
   const startEditing = (item: any) => {
     setInputPrice('');
@@ -112,8 +78,8 @@ export const CatalogView = () => {
           <button onClick={() => startEditing(null)} className="bg-orange-600 text-white p-3 rounded-2xl shadow-lg active:scale-95 transition-transform"><Plus size={24} /></button>
         </div>
         <div className="max-w-md mx-auto flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {CATEGORIES.map(c => (
-            <button key={c.en} onClick={() => { setActiveCat(c.en); setSearchTerm(''); }} className={`px-5 py-2 rounded-xl whitespace-nowrap text-[11px] font-black transition-all ${activeCat === c.en ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 border border-transparent'}`}>{c.emoji} {t(c.en, c.mm)}</button>
+          {CATEGORIES.map((c) => (
+            <button key={c.en} onClick={() => { setActiveCat(c.en); setSearchTerm(''); }} className={`px-5 py-2 rounded-xl whitespace-nowrap text-[11px] font-black transition-all ${activeCat === c.en ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 border border-transparent'}`}>{t(c.en, c.mm)}</button>
           ))}
         </div>
       </div>
@@ -121,10 +87,7 @@ export const CatalogView = () => {
       {/* ITEM GRID - Hidden on Print */}
       <div className="flex-1 overflow-y-auto no-scrollbar bg-white print:hidden px-4">
         <div className="max-w-md mx-auto p-4 pb-80 grid grid-cols-3 gap-4">
-          {MASTER_ITEMS.filter(i => {
-            const matchesSearch = searchTerm === '' || i.en.toLowerCase().includes(searchTerm.toLowerCase()) || i.mm.includes(searchTerm);
-            return searchTerm ? matchesSearch : (i.cat === activeCat && matchesSearch);
-          }).map(i => (
+          {visibleCatalogItems.map((i) => (
             <button key={i.id} onClick={() => startEditing(i)} className="flex flex-col items-center justify-center p-4 border border-slate-50 rounded-[2.5rem] shadow-sm active:bg-orange-50 active:scale-95 transition-all aspect-square bg-white">
               <span className="text-4xl mb-2">{i.img}</span>
               <span className="text-[10px] font-black text-slate-700 text-center leading-tight">{t(i.en, i.mm)}</span>

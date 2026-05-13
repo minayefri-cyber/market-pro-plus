@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
-import { MASTER_ITEMS } from '../../data/catalog'; // Path ကို သတိထားကြည့်ပါ
+import { CATEGORIES, MASTER_ITEMS } from '../../data/catalog';
 
 export const useMarketStats = (history: any[], period: 'week' | 'month' | 'year') => {
+  const validEns = useMemo(() => new Set(CATEGORIES.map((c) => c.en)), []);
+
   return useMemo(() => {
     const now = new Date();
     
@@ -19,8 +21,12 @@ export const useMarketStats = (history: any[], period: 'week' | 'month' | 'year'
 
     filteredHistory.forEach((rec: any) => {
       rec.items.forEach((it: any) => {
-        // (m: any) လို့ ပြင်ထားပါတယ်
-        const category = MASTER_ITEMS.find((m: any) => it.mmName.includes(m.mm))?.cat || 'အထွေထွေ';
+        const catFromMaster = MASTER_ITEMS.find((m: any) => it.mmName.includes(m.mm))?.cat;
+        const catEn =
+          typeof it.categoryEn === 'string' && validEns.has(it.categoryEn)
+            ? it.categoryEn
+            : catFromMaster ?? 'Others';
+        const category = CATEGORIES.find((c) => c.en === catEn)?.mm || catEn;
         categoryMap[category] = (categoryMap[category] || 0) + it.totalPrice;
         
         if (!itemMap[it.mmName]) {
@@ -45,5 +51,5 @@ export const useMarketStats = (history: any[], period: 'week' | 'month' | 'year'
       .sort((a, b) => b.total - a.total);
 
     return { categoryData: sortedCategories, allItemData: sortedItems, periodTotal: totalSpending };
-  }, [history, period]);
+  }, [history, period, validEns]);
 };
