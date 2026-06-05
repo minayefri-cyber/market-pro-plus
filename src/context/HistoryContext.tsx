@@ -28,8 +28,16 @@ export const HistoryProvider = ({ children }: { children: React.ReactNode }) => 
     localStorage.removeItem('market_history');
   };
 
+  // မှတ်တမ်းကို တစ်ခုချင်းစီ ရွေးဖျက်ရန် function အသစ်
+  const deleteRecord = (id: number | string) => {
+    const updated = history.filter((rec) => rec.id !== id);
+    setHistory(updated);
+    localStorage.setItem('market_history', JSON.stringify(updated));
+  };
+
   return (
-    <HistoryContext.Provider value={{ history, addRecord, clearHistory }}>
+    // အောက်ပါ Provider value တွင် setHistory နှင့် deleteRecord ကိုပါ ထည့်သွင်းထားပါသည်
+    <HistoryContext.Provider value={{ history, addRecord, clearHistory, deleteRecord, setHistory }}>
       {children}
     </HistoryContext.Provider>
   );
